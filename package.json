@@ -1,0 +1,29 @@
+{
+  "name": "hcw",
+  "version": "1.0.0",
+  "description": "hatebu comment watcher",
+  "main": "index.js",
+  "scripts": {
+    "dev": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/y-moriya/hcw.git"
+  },
+  "keywords": [
+    "hatena",
+    "bookmark"
+  ],
+  "author": "y-moriya",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/y-moriya/hcw/issues"
+  },
+  "homepage": "https://github.com/y-moriya/hcw#readme",
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.11",
+    "node-fetch": "^3.2.4"
+  },
+  "type": "module"
+}
