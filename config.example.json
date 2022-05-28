@@ -1,0 +1,5 @@
+{
+  "discord_webhook_url": "https://discord.com/api/webhooks/*",
+  "hono_api_url": "https://*.workers.dev/api/",
+  "hono_basic_auth": ""
+}
