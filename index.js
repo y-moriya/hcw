@@ -99,26 +99,26 @@ const updateBookmark = async (b) => {
 const main = async () => {
   const bookmarks = await getTargetBookmarks();
   console.log('target bookmarks: ', bookmarks.length);
-  let comments = [];
   for (let b of bookmarks) {
+    let comments = [];
     console.log('start crawl: ', b.url);
     comments = await crawl(b);
     await updateBookmark(b);
     console.log('end crawl: ', b.url);
-  }
 
-  if (comments.length > 0) {
-    comments.sort((a, b) => {
-      return Date.parse(a.date) - Date.parse(b.date);
-    });
-
-    for (let c of comments) {
-      await postToDiscord(c);
-      await _sleep(1000);
+    if (comments.length > 0) {
+      comments.sort((a, b) => {
+        return Date.parse(a.date) - Date.parse(b.date);
+      });
+  
+      for (let c of comments) {
+        await postToDiscord(c);
+        await _sleep(1000);
+      }
+      
+    } else {
+      console.log('No new comment.')
     }
-    
-  } else {
-    console.log('No new comment.')
   }
 }
 
