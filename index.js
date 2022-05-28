@@ -120,7 +120,7 @@ const updateBookmark = async (b) => {
 // main
 const main = async () => {
   const bookmarks = await getTargetBookmarks();
-  logger.info('target bookmarks: ', bookmarks.length);
+  logger.info(`target bookmarks: ${bookmarks.length}`);
   for (let b of bookmarks) {
     let comments = [];
     logger.info('start crawl: ', b.url);
