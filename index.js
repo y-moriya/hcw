@@ -1,12 +1,32 @@
 import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
 import fs from 'fs';
-import winston from 'winston';
+import winston, {format} from 'winston';
 
 const hatebu_url = 'https://b.hatena.ne.jp';
 const _sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
-winston.configure({ transports: [ new (winston.transports.File) ({ filename: 'hcw.log'}), new (winston.transports.Console)()]});
+const myFormat = format.printf(({ level, message, timestamp }) => {
+  return `${timestamp} ${level}: ${message}`;
+});
+
+const logger = winston.createLogger({
+  level: 'info',
+  format: format.combine(
+    format.timestamp(),
+    myFormat
+  ),
+  defaultMeta: { service: 'user-service' },
+  transports: [
+    //
+    // - Write all logs with importance level of `error` or less to `error.log`
+    // - Write all logs with importance level of `info` or less to `combined.log`
+    //
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'hcw.log' }),
+    new winston.transports.Console()
+  ],
+});
 
 // Get bookmarks from hono
 const getTargetBookmarks = async () => {
@@ -14,10 +34,10 @@ const getTargetBookmarks = async () => {
   const json = await response.json();
 
   if (json.ok) {
-    winston.info('getTargetBookmarks succeeded.');
+    logger.info('getTargetBookmarks succeeded.');
     return json.bookmarks
   } else {
-    winston.error('getTargetBookmarks failed.')
+    logger.error('getTargetBookmarks failed.')
   }
 }
 
@@ -32,8 +52,8 @@ const crawl = async (bookmark) => {
   const $ = cheerio.load(body);
   const comments = $('.entry-comment-contents');
   const users = [];
-  winston.info(`There are ${comments.length} comments (including duplicate)`);
-  
+  logger.info(`There are ${comments.length} comments (including duplicate)`);
+
   const result = [];
   for (let c of comments) {
     const el = cheerio.load(c);
@@ -46,7 +66,7 @@ const crawl = async (bookmark) => {
     const avatar_url = el('img').attr('src');
     const comment_content = el('span.entry-comment-text').text();
     const permalink = hatebu_url + el('.entry-comment-permalink > a').attr('href');
-  
+
     const perma = await fetch(permalink);
     const perma_body = await perma.text();
     const perma_el = cheerio.load(perma_body);
@@ -56,9 +76,9 @@ const crawl = async (bookmark) => {
     if (Date.parse(date) < Date.parse(last_updated_at)) {
       continue;
     }
-  
-    result.push({username, avatar_url, comment_content, permalink, date});
-    // winston.info({username, avatar_url, comment_content, permalink, date});
+
+    result.push({ username, avatar_url, comment_content, permalink, date });
+    // logger.info({username, avatar_url, comment_content, permalink, date});
   }
 
   return result;
@@ -70,7 +90,7 @@ const postToDiscord = async (c) => {
     "avatar_url": c.avatar_url,
     "content": c.comment_content + "\n" + c.permalink
   });
-  winston.info('send discord: ', body);
+  logger.info('send discord: ', body);
   const res = await fetch(config.discord_webhook_url, {
     method: 'POST',
     headers: {
@@ -80,9 +100,9 @@ const postToDiscord = async (c) => {
   });
   const status = res.status;
   if (status === 204) {
-    winston.info('post to discord was succeeded.');
+    logger.info('post to discord was succeeded.');
   } else {
-    winston.info({status});
+    logger.info({ status });
   }
 }
 
@@ -100,26 +120,26 @@ const updateBookmark = async (b) => {
 // main
 const main = async () => {
   const bookmarks = await getTargetBookmarks();
-  winston.info('target bookmarks: ', bookmarks.length);
+  logger.info('target bookmarks: ', bookmarks.length);
   for (let b of bookmarks) {
     let comments = [];
-    winston.info('start crawl: ', b.url);
+    logger.info('start crawl: ', b.url);
     comments = await crawl(b);
     await updateBookmark(b);
-    winston.info('end crawl: ', b.url);
+    logger.info('end crawl: ', b.url);
 
     if (comments.length > 0) {
       comments.sort((a, b) => {
         return Date.parse(a.date) - Date.parse(b.date);
       });
-  
+
       for (let c of comments) {
         await postToDiscord(c);
         await _sleep(1000);
       }
-      
+
     } else {
-      winston.info('No new comment.')
+      logger.info('No new comment.')
     }
   }
 }
