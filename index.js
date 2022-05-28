@@ -62,7 +62,7 @@ const crawl = async (bookmark) => {
   return result;
 }
 
-const postToDiscord = async (comment) => {
+const postToDiscord = async (c) => {
   const body = JSON.stringify({
     "username": `${c.username} ${c.date}`,
     "avatar_url": c.avatar_url,
