@@ -9,6 +9,7 @@ const config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
 const myFormat = format.printf(({ level, message, timestamp }) => {
   return `${timestamp} ${level}: ${message}`;
 });
+let delete_flag = false;
 
 const logger = winston.createLogger({
   level: 'info',
@@ -55,6 +56,7 @@ const crawl = async (bookmark) => {
   logger.info(`There are ${comments.length} comments (including duplicate)`);
 
   const result = [];
+  let latest_date = new Date('2022/01/01');
   for (let c of comments) {
     const el = cheerio.load(c);
     const username = el('.entry-comment-username').text();
@@ -72,13 +74,21 @@ const crawl = async (bookmark) => {
     const perma_el = cheerio.load(perma_body);
     const date = perma_el('span.comment-body-date > a').text();
     await _sleep(1000);
+    latest_date = latest_date > new Date(date) ? latest_date : new Date(date);
 
-    if (Date.parse(date) < Date.parse(last_updated_at)) {
+    if (new Date(date) < new Date(last_updated_at)) {
+      logger.info(`skip this comment: ${username}, ${comment_content}`)
       continue;
     }
 
     result.push({ username, avatar_url, comment_content, permalink, date });
-    // logger.info({username, avatar_url, comment_content, permalink, date});
+  }
+
+  const limit_date = new Date(latest_date.setDate(latest_date.getDate() + config.limit_days));
+  if (limit_date < new Date()) {
+    logger.info(`Delete bookmark ${bookmark.url} because of over limit date.`)
+    await deleteBookmark(bookmark);
+    delete_flag = true;
   }
 
   return result;
@@ -90,7 +100,7 @@ const postToDiscord = async (c) => {
     "avatar_url": c.avatar_url,
     "content": c.comment_content + "\n" + c.permalink
   });
-  logger.info('send discord: ', body);
+  logger.info(`send discord: ${body}`);
   const res = await fetch(config.discord_webhook_url, {
     method: 'POST',
     headers: {
@@ -102,7 +112,7 @@ const postToDiscord = async (c) => {
   if (status === 204) {
     logger.info('post to discord was succeeded.');
   } else {
-    logger.info({ status });
+    logger.error(`status: ${status}`);
   }
 }
 
@@ -117,16 +127,32 @@ const updateBookmark = async (b) => {
   });
 }
 
+const deleteBookmark = async (b) => {
+  const id = encodeURIComponent(b.url);
+  const res = await fetch(config.hono_api_url + 'bookmarks/' + id, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Basic ${config.hono_basic_auth}`
+    }
+  });
+}
+
 // main
 const main = async () => {
   const bookmarks = await getTargetBookmarks();
   logger.info(`target bookmarks: ${bookmarks.length}`);
   for (let b of bookmarks) {
+    delete_flag = false;
     let comments = [];
     logger.info('start crawl: ', b.url);
     comments = await crawl(b);
-    await updateBookmark(b);
     logger.info('end crawl: ', b.url);
+    if (delete_flag) {
+      logger.info("deleted.");
+      continue;
+    }
+    
+    await updateBookmark(b);
 
     if (comments.length > 0) {
       comments.sort((a, b) => {
@@ -135,7 +161,7 @@ const main = async () => {
 
       for (let c of comments) {
         await postToDiscord(c);
-        await _sleep(1000);
+        await _sleep(3000);
       }
 
     } else {
