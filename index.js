@@ -146,13 +146,13 @@ const main = async () => {
       });
       b.last_updated_at = comments[comments.length - 1].date;
 
+      logger.info(`update bookmark, date: ${b.last_updated_at}`);
+      await updateBookmark(b);
+
       for (let c of comments) {
         await postToDiscord(c);
         await _sleep(3000);
       }
-
-      logger.info(`update bookmark, date: ${b.last_updated_at}`);
-      await updateBookmark(b);
 
     } else {
       logger.info('No new comment.')
