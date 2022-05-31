@@ -44,6 +44,7 @@ const getTargetBookmarks = async () => {
 
 // Get comments
 const crawl = async (bookmark) => {
+  logger.info(`start crawl: ${bookmark.url}`);
   const response = await fetch(bookmark.url);
   const body = await response.text();
   const $ = cheerio.load(body);
@@ -75,13 +76,14 @@ const crawl = async (bookmark) => {
     await _sleep(1000);
 
     if (comment_date <= new Date(bookmark.last_updated_at)) {
-      logger.info(`skip comment: ${permalink}`)
+      logger.info(`skip old comment: ${permalink}`)
       continue;
     }
 
     result.push({ username, avatar_url, comment_content, permalink, date });
   }
 
+  logger.info(`end crawl: ${bookmark.url}, ${result.length} comments were found.`);
   return result;
 }
 
@@ -108,6 +110,7 @@ const postToDiscord = async (c) => {
 }
 
 const updateBookmark = async (b) => {
+  logger.info(`update bookmark, date: ${b.last_updated_at}`);
   const id = encodeURIComponent(b.url);
   const body = JSON.stringify({ "last_updated_at": b.last_updated_at, "users": b.users });
   const res = await fetch(config.hono_api_url + 'bookmarks/' + id, {
@@ -154,10 +157,9 @@ const main = async () => {
       b.users = [];
     }
     let comments = [];
-    logger.info('start crawl: ', b.url);
+
     // b.last_updated_at 以降のコメントを取得
     comments = await crawl(b);
-    logger.info('end crawl: ', b.url);
     
     if (comments.length > 0) {
       // 対象のコメントを投稿日時の昇順でソート
@@ -168,7 +170,6 @@ const main = async () => {
       // 最後（最新）のコメントの投稿日時を b.last_update_at に設定
       b.last_updated_at = comments[comments.length - 1].date;
 
-      logger.info(`update bookmark, date: ${b.last_updated_at}`);
       await updateBookmark(b);
 
       // 各コメントを discord に post
@@ -189,7 +190,7 @@ const main = async () => {
       }
     }
 
-
+    await _sleep(1000);
   }
 }
 
