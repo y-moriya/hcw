@@ -42,10 +42,20 @@ const getTargetBookmarks = async () => {
   }
 }
 
+const getBookmarkUrl = (url) => {
+  const m = url.match(/http(s?):\/\/(.+)/);
+  if (m[1] === 's') {
+    return `${hatebu_url}/entry/s/${m[2]}`;
+  } else {
+    return `${hatebu_url}/entry/${m[2]}`;
+  }
+}
+
 // Get comments
 const crawl = async (bookmark) => {
-  logger.info(`start crawl: ${bookmark.url}`);
-  const response = await fetch(bookmark.url);
+  const url = getBookmarkUrl(bookmark.url)
+  logger.info(`start crawl: ${url}`);
+  const response = await fetch(url);
   const body = await response.text();
   const $ = cheerio.load(body);
   const comments = $('.entry-comment-contents');
@@ -83,7 +93,7 @@ const crawl = async (bookmark) => {
     result.push({ username, avatar_url, comment_content, permalink, date });
   }
 
-  logger.info(`end crawl: ${bookmark.url}, ${result.length} comments were found.`);
+  logger.info(`end crawl: ${url}, ${result.length} comments were found.`);
   return result;
 }
 
@@ -195,4 +205,3 @@ const main = async () => {
 }
 
 await main();
-
