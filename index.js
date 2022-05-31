@@ -10,6 +10,7 @@ const myFormat = format.printf(({ level, message, timestamp }) => {
   return `${timestamp} ${level}: ${message}`;
 });
 
+// def logger
 const logger = winston.createLogger({
   level: 'info',
   format: format.combine(
@@ -47,17 +48,17 @@ const crawl = async (bookmark) => {
   const body = await response.text();
   const $ = cheerio.load(body);
   const comments = $('.entry-comment-contents');
-  const users = [];
   logger.info(`There are ${comments.length} comments (including duplicate)`);
 
   const result = [];
   for (let c of comments) {
     const el = cheerio.load(c);
     const username = el('.entry-comment-username').text().trim();
-    if (users.includes(username)) {
+    if (bookmark.users.includes(username)) {
+      logger.info(`skip comment: ${username}`);
       continue;
     } else {
-      users.push(username);
+      bookmark.users.push(username);
     }
     const avatar_url = el('img').attr('src');
     const comment_content = el('span.entry-comment-text').text();
@@ -71,7 +72,7 @@ const crawl = async (bookmark) => {
     await _sleep(1000);
 
     if (comment_date <= new Date(bookmark.last_updated_at)) {
-      logger.info(`skip this comment: ${username}, ${comment_content}`)
+      logger.info(`skip comment: ${permalink}`)
       continue;
     }
 
@@ -97,15 +98,15 @@ const postToDiscord = async (c) => {
   });
   const status = res.status;
   if (status === 204) {
-    logger.info('post to discord was succeeded.');
+    logger.info(`post to discord ${c.permalink} was succeeded.`);
   } else {
-    logger.error(`status: ${status}`);
+    logger.error(`post to discord ${c.permalink} was failed, status: ${status}`);
   }
 }
 
 const updateBookmark = async (b) => {
   const id = encodeURIComponent(b.url);
-  const body = JSON.stringify({ "last_updated_at": b.last_updated_at });
+  const body = JSON.stringify({ "last_updated_at": b.last_updated_at, "users": b.users });
   const res = await fetch(config.hono_api_url + 'bookmarks/' + id, {
     method: 'PUT',
     headers: {
@@ -114,6 +115,12 @@ const updateBookmark = async (b) => {
     },
     body: body
   });
+  const status = res.status;
+  if (status === 200) {
+    logger.info(`update bookmark ${b.url} was succeeded.`);
+  } else {
+    logger.info(`update bookmark was failed, status: ${status}`);
+  }
 }
 
 const deleteBookmark = async (b) => {
@@ -124,6 +131,12 @@ const deleteBookmark = async (b) => {
       'Authorization': `Basic ${config.hono_basic_auth}`
     }
   });
+  const status = res.status;
+  if (status === 200) {
+    logger.info(`delete bookmark ${b.url} was succeeded.`);
+  } else {
+    logger.info(`delete bookmark was failed, status: ${status}`);
+  }
 }
 
 // main
@@ -132,33 +145,43 @@ const main = async () => {
   logger.info(`target bookmarks: ${bookmarks.length}`);
   for (let b of bookmarks) {
     if (!b.last_updated_at) {
-      b.last_updated_at = new Date('2022/01/01 00:00');
+      b.last_updated_at = '2022/01/01 00:00';
+    }
+    if (!b.users) {
+      b.users = [];
     }
     let comments = [];
     logger.info('start crawl: ', b.url);
+    // b.last_updated_at 以降のコメントを取得
     comments = await crawl(b);
     logger.info('end crawl: ', b.url);
     
     if (comments.length > 0) {
+      // 対象のコメントを投稿日時の昇順でソート
       comments.sort((a, b) => {
         return Date.parse(a.date) - Date.parse(b.date);
       });
+
+      // 最後（最新）のコメントの投稿日時を b.last_update_at に設定
       b.last_updated_at = comments[comments.length - 1].date;
 
       logger.info(`update bookmark, date: ${b.last_updated_at}`);
       await updateBookmark(b);
 
+      // 各コメントを discord に post
       for (let c of comments) {
         await postToDiscord(c);
         await _sleep(3000);
       }
 
     } else {
+      // 取得したコメントが無かった場合は最終投稿日時と現在時刻を比較し、
+      // config.limit_days 日が経過していた場合は削除する
       logger.info('No new comment.')
       const last_updated_at = new Date(b.last_updated_at);
       const limit_date = new Date(last_updated_at.setDate(last_updated_at.getDate() + config.limit_days));
       if (limit_date < new Date()) {
-        logger.info(`Delete bookmark ${b.url} because of over limit date.`)
+        logger.info(`Delete bookmark ${b.url} because the date of limit is over.`)
         await deleteBookmark(b);
       }
     }
