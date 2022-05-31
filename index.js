@@ -54,8 +54,11 @@ const crawl = async (bookmark) => {
   for (let c of comments) {
     const el = cheerio.load(c);
     const username = el('.entry-comment-username').text().trim();
-    if (bookmark.users.includes(username)) {
-      logger.info(`skip comment: ${username}`);
+    if (config.ignore.includes(username)) {
+      logger.info(`skip ignore comment: ${username}`);
+      continue;
+    } else if (bookmark.users.includes(username)) {
+      logger.info(`skip posted comment: ${username}`);
       continue;
     } else {
       bookmark.users.push(username);
