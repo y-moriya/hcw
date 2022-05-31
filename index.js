@@ -9,7 +9,6 @@ const config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
 const myFormat = format.printf(({ level, message, timestamp }) => {
   return `${timestamp} ${level}: ${message}`;
 });
-let delete_flag = false;
 
 const logger = winston.createLogger({
   level: 'info',
@@ -44,10 +43,6 @@ const getTargetBookmarks = async () => {
 
 // Get comments
 const crawl = async (bookmark) => {
-  let last_updated_at = '2022/01/01 00:00';
-  if (bookmark.last_updated_at) {
-    last_updated_at = bookmark.last_updated_at;
-  }
   const response = await fetch(bookmark.url);
   const body = await response.text();
   const $ = cheerio.load(body);
@@ -56,7 +51,6 @@ const crawl = async (bookmark) => {
   logger.info(`There are ${comments.length} comments (including duplicate)`);
 
   const result = [];
-  let latest_date = new Date('2022/01/01');
   for (let c of comments) {
     const el = cheerio.load(c);
     const username = el('.entry-comment-username').text();
@@ -73,22 +67,16 @@ const crawl = async (bookmark) => {
     const perma_body = await perma.text();
     const perma_el = cheerio.load(perma_body);
     const date = perma_el('span.comment-body-date > a').text();
+    const comment_date = new Date(date);
     await _sleep(1000);
-    latest_date = latest_date > new Date(date) ? latest_date : new Date(date);
+    // last_updated_at = last_updated_at > comment_date ? last_updated_at : comment_date;
 
-    if (new Date(date) < new Date(last_updated_at)) {
+    if (comment_date < new Date(bookmark.last_updated_at)) {
       logger.info(`skip this comment: ${username}, ${comment_content}`)
       continue;
     }
 
     result.push({ username, avatar_url, comment_content, permalink, date });
-  }
-
-  const limit_date = new Date(latest_date.setDate(latest_date.getDate() + config.limit_days));
-  if (limit_date < new Date()) {
-    logger.info(`Delete bookmark ${bookmark.url} because of over limit date.`)
-    await deleteBookmark(bookmark);
-    delete_flag = true;
   }
 
   return result;
@@ -116,14 +104,15 @@ const postToDiscord = async (c) => {
   }
 }
 
-// TODO: Update bookmark last_updated_at
 const updateBookmark = async (b) => {
   const id = encodeURIComponent(b.url);
+  const body = JSON.stringify({ "last_updated_at": b.last_updated_at });
   const res = await fetch(config.hono_api_url + 'bookmarks/' + id, {
     method: 'PUT',
     headers: {
       'Authorization': `Basic ${config.hono_basic_auth}`
-    }
+    },
+    body: body
   });
 }
 
@@ -142,32 +131,43 @@ const main = async () => {
   const bookmarks = await getTargetBookmarks();
   logger.info(`target bookmarks: ${bookmarks.length}`);
   for (let b of bookmarks) {
-    delete_flag = false;
+    if (!b.last_updated_at) {
+      b.last_updated_at = new Date('2022/01/01 00:00');
+    }
     let comments = [];
     logger.info('start crawl: ', b.url);
     comments = await crawl(b);
     logger.info('end crawl: ', b.url);
-    if (delete_flag) {
-      logger.info("deleted.");
-      continue;
-    }
     
-    await updateBookmark(b);
-
     if (comments.length > 0) {
       comments.sort((a, b) => {
         return Date.parse(a.date) - Date.parse(b.date);
       });
+      if (b.last_updated_at === comments[comments.length - 1].last_updated_at) {
+        const last_updated_at = new Date(b.last_updated_at);
+        const limit_date = new Date(last_updated_at.setDate(last_updated_at.getDate() + config.limit_days));
+        if (limit_date < new Date()) {
+          logger.info(`Delete bookmark ${bookmark.url} because of over limit date.`)
+          await deleteBookmark(bookmark);
+        }
+      } else {
+        b.last_updated_at = comments[comments.length - 1].last_updated_at;
+  
+        for (let c of comments) {
+          await postToDiscord(c);
+          await _sleep(3000);
+        }
 
-      for (let c of comments) {
-        await postToDiscord(c);
-        await _sleep(3000);
+        await updateBookmark(b);
       }
 
     } else {
       logger.info('No new comment.')
     }
+
+
   }
 }
 
 await main();
+
