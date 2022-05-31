@@ -53,7 +53,7 @@ const crawl = async (bookmark) => {
   const result = [];
   for (let c of comments) {
     const el = cheerio.load(c);
-    const username = el('.entry-comment-username').text();
+    const username = el('.entry-comment-username').text().trim();
     if (users.includes(username)) {
       continue;
     } else {
@@ -69,9 +69,8 @@ const crawl = async (bookmark) => {
     const date = perma_el('span.comment-body-date > a').text();
     const comment_date = new Date(date);
     await _sleep(1000);
-    // last_updated_at = last_updated_at > comment_date ? last_updated_at : comment_date;
 
-    if (comment_date < new Date(bookmark.last_updated_at)) {
+    if (comment_date <= new Date(bookmark.last_updated_at)) {
       logger.info(`skip this comment: ${username}, ${comment_content}`)
       continue;
     }
