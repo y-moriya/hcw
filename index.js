@@ -110,7 +110,8 @@ const updateBookmark = async (b) => {
   const res = await fetch(config.hono_api_url + 'bookmarks/' + id, {
     method: 'PUT',
     headers: {
-      'Authorization': `Basic ${config.hono_basic_auth}`
+      'Authorization': `Basic ${config.hono_basic_auth}`,
+      'Content-Type': 'application/json'
     },
     body: body
   });
@@ -143,26 +144,24 @@ const main = async () => {
       comments.sort((a, b) => {
         return Date.parse(a.date) - Date.parse(b.date);
       });
-      if (b.last_updated_at === comments[comments.length - 1].last_updated_at) {
-        const last_updated_at = new Date(b.last_updated_at);
-        const limit_date = new Date(last_updated_at.setDate(last_updated_at.getDate() + config.limit_days));
-        if (limit_date < new Date()) {
-          logger.info(`Delete bookmark ${bookmark.url} because of over limit date.`)
-          await deleteBookmark(bookmark);
-        }
-      } else {
-        b.last_updated_at = comments[comments.length - 1].last_updated_at;
-  
-        for (let c of comments) {
-          await postToDiscord(c);
-          await _sleep(3000);
-        }
+      b.last_updated_at = comments[comments.length - 1].date;
 
-        await updateBookmark(b);
+      for (let c of comments) {
+        await postToDiscord(c);
+        await _sleep(3000);
       }
+
+      logger.info(`update bookmark, date: ${b.last_updated_at}`);
+      await updateBookmark(b);
 
     } else {
       logger.info('No new comment.')
+      const last_updated_at = new Date(b.last_updated_at);
+      const limit_date = new Date(last_updated_at.setDate(last_updated_at.getDate() + config.limit_days));
+      if (limit_date < new Date()) {
+        logger.info(`Delete bookmark ${b.url} because of over limit date.`)
+        await deleteBookmark(b);
+      }
     }
 
 
