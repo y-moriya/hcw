@@ -54,7 +54,8 @@ const getBookmarkUrl = (url) => {
 
 // Get comments
 const crawl = async (bookmark) => {
-  const url = getBookmarkUrl(bookmark.url)
+  const url = getBookmarkUrl(bookmark.url);
+  bookmark.b_url = url;
   logger.info(`start crawl: ${url}`);
   const response = await fetch(url);
   const body = await response.text();
@@ -123,7 +124,7 @@ const postToDiscord = async (c) => {
 const updateBookmark = async (b) => {
   logger.info(`update bookmark, date: ${b.last_updated_at}`);
   const id = encodeURIComponent(b.url);
-  const body = JSON.stringify({ "last_updated_at": b.last_updated_at, "users": b.users });
+  const body = JSON.stringify({ "last_updated_at": b.last_updated_at, "users": b.users, "b_url": b.b_url });
   const res = await fetch(config.hono_api_url + 'bookmarks/' + id, {
     method: 'PUT',
     headers: {
