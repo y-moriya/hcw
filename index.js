@@ -189,9 +189,14 @@ const main = async () => {
       }
 
     } else {
-      // 取得したコメントが無かった場合は最終投稿日時と現在時刻を比較し、
-      // config.limit_days 日が経過していた場合は削除する
+      // 取得したコメントが無かった場合
       logger.info('No new comment.')
+
+      // users を反映させるため一応 update する
+      await updateBookmark(b);
+
+      // 最終投稿日時と現在時刻を比較し、
+      // config.limit_days 日が経過していた場合はbookmarkを削除する
       const last_updated_at = new Date(b.last_updated_at);
       const limit_date = new Date(last_updated_at.setDate(last_updated_at.getDate() + config.limit_days));
       if (limit_date < new Date()) {
