@@ -157,6 +157,7 @@ const deleteBookmark = async (b) => {
 
 // main
 const main = async () => {
+  logger.info('start main.');
   const bookmarks = await getTargetBookmarks();
   logger.info(`target bookmarks: ${bookmarks.length}`);
   for (let b of bookmarks) {
@@ -207,6 +208,8 @@ const main = async () => {
 
     await _sleep(1000);
   }
+
+  logger.info('end main.');
 }
 
 await main();
