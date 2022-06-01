@@ -24,7 +24,8 @@
   "dependencies": {
     "cheerio": "^1.0.0-rc.11",
     "node-fetch": "^3.2.4",
-    "winston": "^3.7.2"
+    "winston": "^3.7.2",
+    "winston-daily-rotate-file": "^4.7.1"
   },
   "type": "module"
 }

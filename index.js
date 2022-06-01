@@ -2,6 +2,7 @@ import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
 import fs from 'fs';
 import winston, {format} from 'winston';
+import DailyRotateFile from 'winston-daily-rotate-file';
 
 const hatebu_url = 'https://b.hatena.ne.jp';
 const _sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -23,8 +24,8 @@ const logger = winston.createLogger({
     // - Write all logs with importance level of `error` or less to `error.log`
     // - Write all logs with importance level of `info` or less to `combined.log`
     //
-    new winston.transports.File({ filename: 'error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'hcw.log' }),
+    new winston.transports.File({ filename: 'log/error.log', level: 'error' }),
+    new DailyRotateFile({ filename: 'log/hcw.log', datePattern: 'yyyy-MM-DD' }),
     new winston.transports.Console()
   ],
 });
