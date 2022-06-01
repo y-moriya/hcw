@@ -174,6 +174,8 @@ const main = async () => {
     comments = await crawl(b);
     
     if (comments.length > 0) {
+      logger.info(`${comments.length} comments to post.`);
+
       // 対象のコメントを投稿日時の昇順でソート
       comments.sort((a, b) => {
         return Date.parse(a.date) - Date.parse(b.date);
