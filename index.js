@@ -25,7 +25,7 @@ const logger = winston.createLogger({
     // - Write all logs with importance level of `info` or less to `combined.log`
     //
     new winston.transports.File({ filename: 'log/error.log', level: 'error' }),
-    new DailyRotateFile({ filename: 'log/hcw.log', datePattern: 'yyyy-MM-DD' }),
+    new DailyRotateFile({ filename: 'log/hcw.log', datePattern: 'yyyy-MM-DD', maxFiles: '7d' }),
     new winston.transports.Console()
   ],
 });
