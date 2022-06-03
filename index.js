@@ -7,6 +7,9 @@ import DailyRotateFile from 'winston-daily-rotate-file';
 const hatebu_url = 'https://b.hatena.ne.jp';
 const _sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
+const timezoned = () => {
+  return new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+}
 const myFormat = format.printf(({ level, message, timestamp }) => {
   return `${timestamp} ${level}: ${message}`;
 });
@@ -15,7 +18,7 @@ const myFormat = format.printf(({ level, message, timestamp }) => {
 const logger = winston.createLogger({
   level: 'info',
   format: format.combine(
-    format.timestamp(),
+    format.timestamp({ format: timezoned }),
     myFormat
   ),
   defaultMeta: { service: 'user-service' },
