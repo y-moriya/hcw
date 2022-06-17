@@ -33,14 +33,14 @@ const logger = winston.createLogger({
   ],
 });
 
-// Get bookmarks from hono
+// Get bookmarks from rails
 const getTargetBookmarks = async () => {
-  const response = await fetch(config.hono_api_url + 'bookmarks');
+  const response = await fetch(config.rails_api_url + 'bookmarks');
   const json = await response.json();
 
-  if (json.ok) {
+  if (json) {
     logger.info('getTargetBookmarks succeeded.');
-    return json.bookmarks
+    return json
   } else {
     logger.error('getTargetBookmarks failed.')
   }
@@ -90,7 +90,7 @@ const crawl = async (bookmark) => {
     const comment_date = new Date(date);
     await _sleep(1000);
 
-    if (comment_date <= new Date(bookmark.last_updated_at)) {
+    if (comment_date <= new Date(bookmark.updated_at)) {
       logger.info(`skip old comment: ${permalink}`)
       continue;
     }
@@ -125,13 +125,11 @@ const postToDiscord = async (c) => {
 }
 
 const updateBookmark = async (b) => {
-  logger.info(`update bookmark, date: ${b.last_updated_at}`);
-  const id = encodeURIComponent(b.url);
-  const body = JSON.stringify({ "last_updated_at": b.last_updated_at, "users": b.users, "b_url": b.b_url });
-  const res = await fetch(config.hono_api_url + 'bookmarks/' + id, {
+  logger.info(`update bookmark`);
+  const body = JSON.stringify({"url": b.url, "users": b.users, "b_url": b.b_url });
+  const res = await fetch(config.rails_api_url + 'bookmarks/update', {
     method: 'PUT',
     headers: {
-      'Authorization': `Basic ${config.hono_basic_auth}`,
       'Content-Type': 'application/json'
     },
     body: body
@@ -145,15 +143,16 @@ const updateBookmark = async (b) => {
 }
 
 const deleteBookmark = async (b) => {
-  const id = encodeURIComponent(b.url);
-  const res = await fetch(config.hono_api_url + 'bookmarks/' + id, {
+  const body = JSON.stringify({"url": b.url});
+  const res = await fetch(config.rails_api_url + 'bookmarks/destroy', {
     method: 'DELETE',
     headers: {
-      'Authorization': `Basic ${config.hono_basic_auth}`
-    }
+      'Content-Type': 'application/json'
+    },
+    body: body
   });
   const status = res.status;
-  if (status === 200) {
+  if (status === 204) {
     logger.info(`delete bookmark ${b.url} was succeeded.`);
   } else {
     logger.info(`delete bookmark was failed, status: ${status}`);
@@ -166,15 +165,12 @@ const main = async () => {
   const bookmarks = await getTargetBookmarks();
   logger.info(`target bookmarks: ${bookmarks.length}`);
   for (let b of bookmarks) {
-    if (!b.last_updated_at) {
-      b.last_updated_at = '2022/01/01 00:00';
-    }
     if (!b.users) {
       b.users = [];
     }
     let comments = [];
 
-    // b.last_updated_at 以降のコメントを取得
+    // b.updated_at 以降のコメントを取得
     comments = await crawl(b);
     
     if (comments.length > 0) {
@@ -184,9 +180,6 @@ const main = async () => {
       comments.sort((a, b) => {
         return Date.parse(a.date) - Date.parse(b.date);
       });
-
-      // 最後（最新）のコメントの投稿日時を b.last_update_at に設定
-      b.last_updated_at = comments[comments.length - 1].date;
 
       await updateBookmark(b);
 
@@ -200,13 +193,13 @@ const main = async () => {
       // 取得したコメントが無かった場合
       logger.info('No new comment.')
 
-      // users を反映させるため一応 update する
+      // users を反映させるため update する
       await updateBookmark(b);
 
       // 最終投稿日時と現在時刻を比較し、
       // config.limit_days 日が経過していた場合はbookmarkを削除する
-      const last_updated_at = new Date(b.last_updated_at);
-      const limit_date = new Date(last_updated_at.setDate(last_updated_at.getDate() + config.limit_days));
+      const updated_at = new Date(b.updated_at);
+      const limit_date = new Date(updated_at.setDate(updated_at.getDate() + config.limit_days));
       if (limit_date < new Date()) {
         logger.info(`Delete bookmark ${b.url} because the date of limit is over.`)
         await deleteBookmark(b);
