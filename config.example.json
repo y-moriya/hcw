@@ -1,6 +1,5 @@
 {
   "discord_webhook_url": "https://discord.com/api/webhooks/*",
   "rails_api_url": "https://*.herokuapp.com/",
-  "limit_days": 1,
-  "ignore": []
+  "limit_days": 1
 }

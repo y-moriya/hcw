@@ -56,7 +56,7 @@ const getBookmarkUrl = (url) => {
 }
 
 // Get comments
-const crawl = async (bookmark) => {
+const crawl = async (bookmark, ignores) => {
   const url = getBookmarkUrl(bookmark.url);
   bookmark.b_url = url;
   logger.info(`start crawl: ${url}`);
@@ -70,7 +70,7 @@ const crawl = async (bookmark) => {
   for (let c of comments) {
     const el = cheerio.load(c);
     const username = el('.entry-comment-username').text().trim();
-    if (config.ignore.includes(username)) {
+    if (ignores.includes(username)) {
       logger.info(`skip ignore comment: ${username}`);
       continue;
     } else if (bookmark.users.includes(username)) {
@@ -159,10 +159,23 @@ const deleteBookmark = async (b) => {
   }
 }
 
+const getIgnores = async () => {
+  const response = await fetch(config.rails_api_url + 'ignores');
+  const json = await response.json();
+
+  if (json) {
+    logger.info('getIgnores succeeded.');
+    return json
+  } else {
+    logger.error('getIgnores failed.')
+  }
+}
+
 // main
 const main = async () => {
   logger.info('start main.');
   const bookmarks = await getTargetBookmarks();
+  const ignores = await getIgnores();
   logger.info(`target bookmarks: ${bookmarks.length}`);
   for (let b of bookmarks) {
     if (!b.users) {
@@ -171,7 +184,7 @@ const main = async () => {
     let comments = [];
 
     // b.updated_at 以降のコメントを取得
-    comments = await crawl(b);
+    comments = await crawl(b, ignores);
     
     if (comments.length > 0) {
       logger.info(`${comments.length} comments to post.`);
