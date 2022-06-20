@@ -23,10 +23,6 @@ const logger = winston.createLogger({
   ),
   defaultMeta: { service: 'user-service' },
   transports: [
-    //
-    // - Write all logs with importance level of `error` or less to `error.log`
-    // - Write all logs with importance level of `info` or less to `combined.log`
-    //
     new winston.transports.File({ filename: 'log/error.log', level: 'error' }),
     new DailyRotateFile({ filename: 'log/hcw.log', datePattern: 'yyyy-MM-DD', maxFiles: '7d' }),
     new winston.transports.Console()
@@ -111,13 +107,13 @@ const crawl = async (bookmark, ignores) => {
 const postToDiscord = async (c, thread_id) => {
   const params = { thread_id: thread_id };
   const query_params = new URLSearchParams(params);
-  const url = config.discord_webhook_url + query_params;
+  const url = config.discord_webhook_url + '?' + query_params;
   const body = JSON.stringify({
     "username": `${c.username}`,
     "avatar_url": c.avatar_url,
     "content": c.comment_content
   });
-  logger.info(`send discord: ${body}`);
+  logger.info(`send discord, url: ${url}, body: ${body}`);
   const res = await fetch(url, {
     method: 'POST',
     headers: {
