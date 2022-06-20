@@ -83,33 +83,42 @@ const crawl = async (bookmark, ignores) => {
     const comment_content = el('span.entry-comment-text').text();
     const permalink = hatebu_url + el('.entry-comment-permalink > a').attr('href');
 
-    const perma = await fetch(permalink);
-    const perma_body = await perma.text();
-    const perma_el = cheerio.load(perma_body);
-    const date = perma_el('span.comment-body-date > a').text();
-    const comment_date = new Date(date);
-    await _sleep(1000);
-
-    if (comment_date <= new Date(bookmark.updated_at)) {
-      logger.info(`skip old comment: ${permalink}`)
-      continue;
+    try {
+      const perma = await fetch(permalink);
+      const perma_body = await perma.text();
+      const perma_el = cheerio.load(perma_body);
+      const date = perma_el('span.comment-body-date > a').text();
+      const comment_date = new Date(date);
+      await _sleep(1000);
+  
+      if (comment_date <= new Date(bookmark.updated_at)) {
+        logger.info(`skip old comment: ${permalink}`)
+        continue;
+      }
+  
+      result.push({ username, avatar_url, comment_content, permalink, date });
+      
+    } catch (error) {
+      logger.error(`unexpected error occurred, username: ${username}`);
+      logger.error(error);
     }
-
-    result.push({ username, avatar_url, comment_content, permalink, date });
   }
 
   logger.info(`end crawl: ${url}, ${result.length} comments were found.`);
   return result;
 }
 
-const postToDiscord = async (c) => {
+const postToDiscord = async (c, thread_id) => {
+  const params = { thread_id: thread_id };
+  const query_params = new URLSearchParams(params);
+  const url = config.discord_webhook_url + query_params;
   const body = JSON.stringify({
-    "username": `${c.username} ${c.date}`,
+    "username": `${c.username}`,
     "avatar_url": c.avatar_url,
-    "content": c.comment_content + "\n" + c.permalink
+    "content": c.comment_content
   });
   logger.info(`send discord: ${body}`);
-  const res = await fetch(config.discord_webhook_url, {
+  const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -198,7 +207,7 @@ const main = async () => {
 
       // 各コメントを discord に post
       for (let c of comments) {
-        await postToDiscord(c);
+        await postToDiscord(c, b.thread_id);
         await _sleep(3000);
       }
 
